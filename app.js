@@ -54,7 +54,8 @@ function renderDaily(){
   const day = DATA.daily_logs.find(d => d.date===STATE.id) || DATA.daily_logs[0];
   const by = sessionById();
   const sessions = day.sessions.map(x => by[x.id]).filter(Boolean).filter(passesQuery);
-  $('#view').innerHTML = hero(niceDate(day.date), 'daily log', 'A clear record of what happened on this day, grouped into readable work cards.', [[sessions.length,'shown'],[day.message_count,'messages'],[day.tool_call_count,'tool calls']]) + '<section class="keywords">'+day.keywords.map(k => '<span>'+esc(k)+'</span>').join('')+'</section><section class="timeline">'+sessions.map(sessionCard).join('')+'</section>';
+  const summary = '<section class="day-summary"><div><p class="mini-label">day summary</p><h2>What happened today</h2><p>'+esc(day.summary || 'Summary will appear after the next rebuild.')+'</p></div><ul>'+((day.highlights||[]).map(h => '<li>'+esc(h)+'</li>').join('') || '<li>No highlights yet.</li>')+'</ul></section>';
+  $('#view').innerHTML = hero(niceDate(day.date), 'daily log', 'A quick executive summary first, then readable work cards if you need the detail.', [[sessions.length,'shown'],[day.message_count,'messages'],[day.tool_call_count,'tool calls']]) + summary + '<section class="keywords">'+day.keywords.map(k => '<span>'+esc(k)+'</span>').join('')+'</section><section class="timeline">'+sessions.map(sessionCard).join('')+'</section>';
 }
 function renderSubject(){
   if(!STATE.id) STATE.id = DATA.subjects[0]?.slug;
