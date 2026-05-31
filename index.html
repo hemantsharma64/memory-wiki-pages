@@ -3,26 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Hemant Memory Wiki</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=mpttshdq">
 </head>
 <body>
   <main id="unlock" class="unlock-screen">
     <section class="unlock-panel">
-      <div class="mini-label">encrypted private archive</div>
+      <div class="mini-label">private memory dashboard</div>
       <h1>Hemant Memory Wiki</h1>
-      <p>Daily logs, subjects, and Jarvis work history. The website shell is public; the memory data is encrypted.</p>
+      <p>Daily summaries, subjects, and Jarvis work history. Enter the password and it opens instantly.</p>
       <div class="unlock-form">
-        <input id="pass" type="password" placeholder="Passphrase" autocomplete="current-password">
+        <input id="pass" type="password" placeholder="Password" autocomplete="current-password" autofocus>
         <button id="btn">Open wiki</button>
       </div>
       <p id="status" class="status"></p>
     </section>
   </main>
   <div id="app" hidden></div>
-  <script src="app.js?v=mptrhh6g"></script>
+  <script src="public-data.js?v=mpttshdq"></script>
+  <script src="app.js?v=mpttshdq"></script>
 </body>
 </html>

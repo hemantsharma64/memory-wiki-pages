@@ -1,5 +1,5 @@
-# Encrypted Memory Wiki Pages
+# Memory Wiki Pages
 
-Public GitHub Pages shell for Hemant's Memory Wiki.
+Public GitHub Pages dashboard for Hemant's Memory Wiki.
 
-The published data is encrypted client-side. Plaintext source data and readable daily archives are stored in the private `memory-wiki` repository.
+The published site uses a lightweight `govind` unlock and includes summary-safe daily logs/cards only. Full transcripts and raw archive data stay in the private `memory-wiki` repository.
