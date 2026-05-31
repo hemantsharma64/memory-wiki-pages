@@ -1,67 +1,78 @@
-const $ = (s) => document.querySelector(s);
+const $ = s => document.querySelector(s);
 const enc = new TextEncoder();
-let state = { data:null, view:'daily', id:null, q:'' };
+let DATA = null;
+let STATE = { section:'daily', id:null, query:'' };
+function esc(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function b64bytes(s){ return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
-function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function clip(s,n=220){ s=(s||'').replace(/\s+/g,' ').trim(); return s.length>n?s.slice(0,n-1)+'…':s; }
-function firstUser(session){ return (session.messages.find(m=>m.role==='user' && m.content)||{}).content || ''; }
-function lastAssistant(session){ const a=session.messages.filter(m=>m.role==='assistant' && m.content); return (a[a.length-1]||{}).content || ''; }
+function titleCase(s){ return String(s||'').replace(/\b\w/g, m => m.toUpperCase()); }
+function compact(text, n=340){ text=String(text||'').replace(/\s+/g,' ').trim(); return text.length>n ? text.slice(0,n-1)+'…' : text; }
+function firstUser(s){ return (s.messages.find(m => m.role==='user' && m.content)||{}).content || ''; }
+function lastAssistant(s){ const a=s.messages.filter(m => m.role==='assistant' && m.content); return (a[a.length-1]||{}).content || ''; }
+function timeOnly(t){ const m=String(t||'').match(/(\d\d:\d\d)/); return m ? m[1] : ''; }
+function niceDate(d){ try { return new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric', year:'numeric'}); } catch { return d; } }
 async function decrypt(pass){
   const payload = await fetch('encrypted-data.json', {cache:'no-store'}).then(r => r.json());
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt:b64bytes(payload.salt), iterations:payload.iterations, hash:'SHA-256'}, keyMaterial, {name:'AES-GCM', length:256}, false, ['decrypt']);
+  const material = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt:b64bytes(payload.salt), iterations:payload.iterations, hash:'SHA-256'}, material, {name:'AES-GCM', length:256}, false, ['decrypt']);
   const ct = new Uint8Array([...b64bytes(payload.ciphertext), ...b64bytes(payload.tag)]);
   const plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:b64bytes(payload.iv), tagLength:128}, key, ct);
   return JSON.parse(new TextDecoder().decode(plain));
 }
-function route(view,id){ state.view=view; state.id=id||null; location.hash = id ? view+'/'+encodeURIComponent(id) : view; renderMain(); }
-function parseHash(){ const h=location.hash.replace(/^#/,''); if(!h) return; const [v,...rest]=h.split('/'); state.view=v||'daily'; state.id=decodeURIComponent(rest.join('/'))||null; }
-function sidebar(){
-  const d=state.data; const days=d.daily_logs || []; const subjects=d.subjects || [];
-  return '<aside class="sidebar"><div class="brand"><div class="orb">J</div><div><b>Hemant Wiki</b><span>Jarvis memory</span></div></div><label class="search"><span>Search</span><input id="search" value="'+esc(state.q)+'" placeholder="subjects, logs, sessions…"></label><div class="nav-block"><h4>Subjects</h4>'+subjects.map(s=>'<button class="nav-item '+(state.view==='subject'&&state.id===s.slug?'active':'')+'" data-view="subject" data-id="'+esc(s.slug)+'"><span>'+esc(titleCase(s.name))+'</span><small>'+s.count+'</small></button>').join('')+'</div><div class="nav-block"><h4>Recent Daily Logs</h4>'+days.map(day=>'<button class="nav-item '+(state.view==='daily'&&state.id===day.date?'active':'')+'" data-view="daily" data-id="'+esc(day.date)+'"><span>'+esc(day.date)+'</span><small>'+day.session_count+'</small></button>').join('')+'</div></aside>';
+function parseHash(){
+  const h = location.hash.replace(/^#/,'');
+  if(!h) return;
+  const [section, ...rest] = h.split('/');
+  STATE.section = section || 'daily';
+  STATE.id = decodeURIComponent(rest.join('/')) || null;
 }
-function titleCase(s){ return (s||'').replace(/\b\w/g, c => c.toUpperCase()); }
-function shell(){
-  const d=state.data;
-  $('#app').innerHTML = sidebar() + '<section class="content"><header class="topbar"><button id="menu">☰</button><div><p class="eyebrow">Encrypted GitHub archive</p><h1 id="page-title">Memory Wiki</h1></div><div class="stats"><span>'+d.subjects.length+' subjects</span><span>'+d.daily_logs.length+' days</span><span>'+d.sessions.length+' sessions</span></div></header><div id="main-panel"></div></section>';
-  $('#search').addEventListener('input', e=>{ state.q=e.target.value.toLowerCase(); renderMain(); });
-  document.querySelectorAll('.nav-item').forEach(b=>b.addEventListener('click',()=>route(b.dataset.view,b.dataset.id)));
-  $('#menu').addEventListener('click',()=>document.body.classList.toggle('sidebar-open'));
+function go(section,id){ STATE.section=section; STATE.id=id; location.hash = section + (id ? '/' + encodeURIComponent(id) : ''); render(); }
+function sessionById(){ return Object.fromEntries(DATA.sessions.map(s => [s.id, s])); }
+function sessionText(s){ return (s.title+' '+s.text).toLowerCase(); }
+function passesQuery(s){ return !STATE.query || sessionText(s).includes(STATE.query); }
+function buildShell(){
+  $('#app').innerHTML = '<aside class="left"><div class="product"><div class="logo">J</div><div><strong>Jarvis</strong><span>Memory Wiki</span></div></div><button class="new-goal" data-go="home">/goal overview</button><label class="search"><span>Search archive</span><input id="q" placeholder="Search work, repos, subjects…"></label><nav><p>Daily logs</p><div id="day-nav"></div><p>Subjects</p><div id="subject-nav"></div></nav><div class="backup-note"><b>GitHub backed up</b><span>Daily markdown + JSON are committed to the private repo.</span></div></aside><main class="page"><div class="mobilebar"><button id="hamb">☰</button><b>Memory Wiki</b></div><div id="view"></div></main>';
+  $('#day-nav').innerHTML = DATA.daily_logs.map(d => '<button class="navlink" data-kind="daily" data-id="'+esc(d.date)+'"><span>'+esc(d.date)+'</span><small>'+d.session_count+'</small></button>').join('');
+  $('#subject-nav').innerHTML = DATA.subjects.map(s => '<button class="navlink" data-kind="subject" data-id="'+esc(s.slug)+'"><span>'+esc(titleCase(s.name))+'</span><small>'+s.count+'</small></button>').join('');
+  document.querySelectorAll('.navlink').forEach(b => b.addEventListener('click', () => go(b.dataset.kind, b.dataset.id)));
+  $('.new-goal').addEventListener('click', () => go('home',''));
+  $('#q').addEventListener('input', e => { STATE.query = e.target.value.toLowerCase().trim(); render(); });
+  $('#hamb').addEventListener('click', () => document.body.classList.toggle('menu-open'));
 }
-function sessionCard(s, expanded=false){
-  return '<article class="log-card" id="session-'+esc(s.id)+'"><div class="log-time">'+esc(s.started_at)+'</div><h3>'+esc(s.title)+'</h3><div class="facts"><span>'+s.message_count+' messages</span><span>'+s.tool_call_count+' tool calls</span><span>'+esc(s.source||'local')+'</span></div><div class="summary-grid"><div><b>Asked</b><p>'+esc(clip(firstUser(s),260))+'</p></div><div><b>Result</b><p>'+esc(clip(lastAssistant(s),320))+'</p></div></div><details '+(expanded?'open':'')+'><summary>Conversation details</summary><div class="transcript">'+s.messages.map(m=>'<div class="msg '+esc(m.role)+'"><b>'+esc(m.role)+' · '+esc(m.time)+'</b><p>'+esc(m.content).replace(/\n/g,'<br>')+'</p></div>').join('')+'</div></details></article>';
+function hero(title, eyebrow, subtitle, stats){
+  return '<section class="hero"><div><div class="mini-label">'+esc(eyebrow)+'</div><h1>'+esc(title)+'</h1><p>'+esc(subtitle)+'</p></div><div class="metric-stack">'+stats.map(x => '<div><b>'+esc(x[0])+'</b><span>'+esc(x[1])+'</span></div>').join('')+'</div></section>';
 }
-function filteredSessions(list){ if(!state.q) return list; return list.filter(s => (s.title+' '+s.text).toLowerCase().includes(state.q)); }
-function renderMain(){
-  parseHash(); if(!state.id && state.view==='daily') state.id=(state.data.daily_logs[0]||{}).date; if(!state.id && state.view==='subject') state.id=(state.data.subjects[0]||{}).slug;
-  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.view===state.view && b.dataset.id===state.id));
-  if(state.view==='subject') return renderSubject();
-  if(state.view==='sessions') return renderSessions();
-  return renderDaily();
+function sessionCard(s){
+  return '<article class="entry"><div class="entry-time">'+esc(timeOnly(s.started_at))+'</div><div class="entry-body"><div class="entry-head"><div><p class="mini-label">session</p><h3>'+esc(s.title)+'</h3></div><div class="chips"><span>'+s.message_count+' messages</span><span>'+s.tool_call_count+' tools</span></div></div><div class="summary-pair"><section><b>What you asked</b><p>'+esc(compact(firstUser(s), 360))+'</p></section><section><b>What Jarvis did</b><p>'+esc(compact(lastAssistant(s), 420))+'</p></section></div><details><summary>Open full conversation</summary><div class="transcript">'+s.messages.map(m => '<div class="bubble '+esc(m.role)+'"><strong>'+esc(m.role)+' · '+esc(m.time)+'</strong><p>'+esc(m.content).replace(/\n/g,'<br>')+'</p></div>').join('')+'</div></details></div></article>';
+}
+function renderHome(){
+  const latest = DATA.daily_logs[0];
+  const top = DATA.subjects.slice(0,6);
+  $('#view').innerHTML = hero('Memory command center','/goal overview','A readable dashboard for everything Hemant and Jarvis have worked on together.',[[DATA.daily_logs.length,'daily logs'],[DATA.subjects.length,'subjects'],[DATA.sessions.length,'sessions']]) + '<section class="section-title"><h2>Continue from latest day</h2><button onclick="go(\'daily\',\''+esc(latest.date)+'\')">Open '+esc(latest.date)+'</button></section><div class="subject-grid">'+top.map(s => '<button class="subject-card" onclick="go(\'subject\',\''+esc(s.slug)+'\')"><span>'+s.count+' sessions</span><b>'+esc(titleCase(s.name))+'</b><p>'+esc(compact(s.summary,150))+'</p></button>').join('')+'</div>';
 }
 function renderDaily(){
-  const day = state.data.daily_logs.find(d=>d.date===state.id) || state.data.daily_logs[0];
-  const sessionsById = Object.fromEntries(state.data.sessions.map(s=>[s.id,s]));
-  const sessions = filteredSessions(day.sessions.map(x=>sessionsById[x.id]).filter(Boolean));
-  $('#page-title').textContent = day.date + ' Daily Log';
-  $('#main-panel').innerHTML = '<section class="hero-log"><div><p class="date-label">'+esc(day.date)+'</p><h2>'+weekday(day.date)+' Wrap-Up</h2><p>Readable summary of what we worked on together, with details one click away.</p></div><div class="hero-metrics"><b>'+sessions.length+'</b><span>sessions shown</span><b>'+day.message_count+'</b><span>messages</span></div></section><section class="keywords">'+day.keywords.map(k=>'<span>'+esc(k)+'</span>').join('')+'</section><section class="timeline">'+sessions.map(s=>sessionCard(s,false)).join('')+'</section>';
+  if(!STATE.id) STATE.id = DATA.daily_logs[0]?.date;
+  const day = DATA.daily_logs.find(d => d.date===STATE.id) || DATA.daily_logs[0];
+  const by = sessionById();
+  const sessions = day.sessions.map(x => by[x.id]).filter(Boolean).filter(passesQuery);
+  $('#view').innerHTML = hero(niceDate(day.date), 'daily log', 'A clear record of what happened on this day, grouped into readable work cards.', [[sessions.length,'shown'],[day.message_count,'messages'],[day.tool_call_count,'tool calls']]) + '<section class="keywords">'+day.keywords.map(k => '<span>'+esc(k)+'</span>').join('')+'</section><section class="timeline">'+sessions.map(sessionCard).join('')+'</section>';
 }
-function weekday(date){ try{return new Date(date+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'long'});}catch(e){return ''} }
 function renderSubject(){
-  const sub = state.data.subjects.find(s=>s.slug===state.id) || state.data.subjects[0];
-  const sessionsById = Object.fromEntries(state.data.sessions.map(s=>[s.id,s]));
-  const sessions = filteredSessions(sub.sessions.map(x=>sessionsById[x.id]).filter(Boolean));
-  $('#page-title').textContent = titleCase(sub.name);
-  $('#main-panel').innerHTML = '<section class="hero-log subject"><div><p class="date-label">Subject</p><h2>'+esc(titleCase(sub.name))+'</h2><p>'+esc(sub.summary)+'</p></div><div class="hero-metrics"><b>'+sessions.length+'</b><span>sessions</span></div></section><section class="timeline">'+sessions.map(s=>sessionCard(s,false)).join('')+'</section>';
+  if(!STATE.id) STATE.id = DATA.subjects[0]?.slug;
+  const subject = DATA.subjects.find(s => s.slug===STATE.id) || DATA.subjects[0];
+  const by = sessionById();
+  const sessions = subject.sessions.map(x => by[x.id]).filter(Boolean).filter(passesQuery);
+  $('#view').innerHTML = hero(titleCase(subject.name), 'subject', subject.summary, [[sessions.length,'sessions'],[subject.mentions || subject.count,'mentions']]) + '<section class="timeline compact">'+sessions.map(sessionCard).join('')+'</section>';
 }
-function renderSessions(){
-  const sessions = filteredSessions(state.data.sessions);
-  $('#page-title').textContent = 'All Sessions';
-  $('#main-panel').innerHTML = '<section class="timeline">'+sessions.map(s=>sessionCard(s,false)).join('')+'</section>';
+function render(){
+  parseHash();
+  if(!DATA) return;
+  document.querySelectorAll('.navlink').forEach(b => b.classList.toggle('active', b.dataset.kind===STATE.section && b.dataset.id===STATE.id));
+  if(STATE.section==='home') renderHome(); else if(STATE.section==='subject') renderSubject(); else renderDaily();
+  document.body.classList.remove('menu-open');
 }
 $('#btn').addEventListener('click', async () => {
-  $('#status').textContent = 'Decrypting…';
-  try { state.data = await decrypt($('#pass').value); $('#unlock').hidden = true; $('#app').hidden = false; parseHash(); if(!state.view) state.view='daily'; shell(); renderMain(); }
+  $('#status').textContent = 'Decrypting archive…';
+  try { DATA = await decrypt($('#pass').value); $('#unlock').hidden = true; $('#app').hidden = false; parseHash(); if(!STATE.id && STATE.section==='daily') STATE.id = DATA.daily_logs[0]?.date; buildShell(); render(); }
   catch(e){ $('#status').textContent = 'Unlock failed. Check the passphrase.'; console.error(e); }
 });
-$('#pass').addEventListener('keydown', e => { if(e.key === 'Enter') $('#btn').click(); });
+$('#pass').addEventListener('keydown', e => { if(e.key==='Enter') $('#btn').click(); });

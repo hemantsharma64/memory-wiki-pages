@@ -10,16 +10,16 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main id="unlock" class="unlock-shell">
-    <section class="unlock-card">
-      <div class="lock-badge">🔐 Private archive</div>
+  <main id="unlock" class="unlock-screen">
+    <section class="unlock-panel">
+      <div class="mini-label">encrypted private archive</div>
       <h1>Hemant Memory Wiki</h1>
-      <p>A cleaner daily-log and subject archive for Jarvis work. The GitHub Pages payload is encrypted before it leaves this machine.</p>
-      <div class="unlock-row">
-        <input id="pass" type="password" placeholder="Enter passphrase" autocomplete="current-password">
-        <button id="btn">Unlock</button>
+      <p>Daily logs, subjects, and Jarvis work history. The website shell is public; the memory data is encrypted.</p>
+      <div class="unlock-form">
+        <input id="pass" type="password" placeholder="Passphrase" autocomplete="current-password">
+        <button id="btn">Open wiki</button>
       </div>
-      <p id="status" class="muted"></p>
+      <p id="status" class="status"></p>
     </section>
   </main>
   <div id="app" hidden></div>
