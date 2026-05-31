@@ -1,4 +1,5 @@
 const $ = s => document.querySelector(s);
+const APP_BUILD_ID = 'mptrhh6g';
 const enc = new TextEncoder();
 let DATA = null;
 let STATE = { section:'daily', id:null, query:'' };
@@ -19,7 +20,7 @@ function withTimeout(promise, ms, label){
 async function decrypt(pass){
   if(!pass) throw new Error('Enter the passphrase.');
   if(!crypto.subtle) throw new Error('This browser does not support WebCrypto. Try Chrome, Safari, or Firefox.');
-  const payload = await withTimeout(fetch('encrypted-data.json?ts=' + Date.now(), {cache:'no-store'}).then(r => {
+  const payload = await withTimeout(fetch('encrypted-data.json?v=' + APP_BUILD_ID + '&ts=' + Date.now(), {cache:'no-store'}).then(r => {
     if(!r.ok) throw new Error('Could not download encrypted archive.');
     return r.json();
   }), 12000, 'Network timed out while downloading the archive.');
@@ -83,7 +84,7 @@ function render(){
   document.body.classList.remove('menu-open');
 }
 $('#btn').addEventListener('click', async () => {
-  $('#status').textContent = 'Decrypting archive…';
+  $('#status').textContent = 'Opening wiki…';
   $('#btn').disabled = true;
   try { DATA = await decrypt($('#pass').value.trim()); $('#unlock').hidden = true; $('#app').hidden = false; parseHash(); if(!STATE.id && STATE.section==='daily') STATE.id = DATA.daily_logs[0]?.date; buildShell(); render(); }
   catch(e){ $('#status').textContent = e && e.message ? e.message : 'Unlock failed. Check the passphrase.'; console.error(e); }
