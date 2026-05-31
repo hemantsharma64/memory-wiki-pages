@@ -4,21 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hemant Memory Wiki</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header><div><p class="eyebrow">Encrypted Private Memory Wiki</p><h1>Hemant Memory Wiki</h1></div></header>
-  <main>
-    <section id="unlock" class="hero">
-      <h2>Unlock memory archive</h2>
-      <p>The data on this GitHub Pages site is encrypted. Enter the passphrase Jarvis generated for Hemant.</p>
-      <input id="pass" type="password" placeholder="Passphrase" autocomplete="current-password">
-      <button id="btn">Unlock</button>
+  <main id="unlock" class="unlock-shell">
+    <section class="unlock-card">
+      <div class="lock-badge">🔐 Private archive</div>
+      <h1>Hemant Memory Wiki</h1>
+      <p>A cleaner daily-log and subject archive for Jarvis work. The GitHub Pages payload is encrypted before it leaves this machine.</p>
+      <div class="unlock-row">
+        <input id="pass" type="password" placeholder="Enter passphrase" autocomplete="current-password">
+        <button id="btn">Unlock</button>
+      </div>
       <p id="status" class="muted"></p>
     </section>
-    <section id="app" hidden></section>
   </main>
-  <footer>Static encrypted deployment. Repo source remains private.</footer>
+  <div id="app" hidden></div>
   <script src="app.js"></script>
 </body>
 </html>
