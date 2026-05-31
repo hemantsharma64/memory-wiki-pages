@@ -10,12 +10,23 @@ function firstUser(s){ return (s.messages.find(m => m.role==='user' && m.content
 function lastAssistant(s){ const a=s.messages.filter(m => m.role==='assistant' && m.content); return (a[a.length-1]||{}).content || ''; }
 function timeOnly(t){ const m=String(t||'').match(/(\d\d:\d\d)/); return m ? m[1] : ''; }
 function niceDate(d){ try { return new Date(d+'T00:00:00Z').toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric', year:'numeric'}); } catch { return d; } }
+function withTimeout(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label || 'Operation timed out')), ms))
+  ]);
+}
 async function decrypt(pass){
-  const payload = await fetch('encrypted-data.json', {cache:'no-store'}).then(r => r.json());
+  if(!pass) throw new Error('Enter the passphrase.');
+  if(!crypto.subtle) throw new Error('This browser does not support WebCrypto. Try Chrome, Safari, or Firefox.');
+  const payload = await withTimeout(fetch('encrypted-data.json?ts=' + Date.now(), {cache:'no-store'}).then(r => {
+    if(!r.ok) throw new Error('Could not download encrypted archive.');
+    return r.json();
+  }), 12000, 'Network timed out while downloading the archive.');
   const material = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt:b64bytes(payload.salt), iterations:payload.iterations, hash:'SHA-256'}, material, {name:'AES-GCM', length:256}, false, ['decrypt']);
+  const key = await withTimeout(crypto.subtle.deriveKey({name:'PBKDF2', salt:b64bytes(payload.salt), iterations:payload.iterations, hash:'SHA-256'}, material, {name:'AES-GCM', length:256}, false, ['decrypt']), 12000, 'Password check timed out. Reload and try again.');
   const ct = new Uint8Array([...b64bytes(payload.ciphertext), ...b64bytes(payload.tag)]);
-  const plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:b64bytes(payload.iv), tagLength:128}, key, ct);
+  const plain = await withTimeout(crypto.subtle.decrypt({name:'AES-GCM', iv:b64bytes(payload.iv), tagLength:128}, key, ct), 12000, 'Decryption timed out. Reload and try again.');
   return JSON.parse(new TextDecoder().decode(plain));
 }
 function parseHash(){
@@ -73,7 +84,9 @@ function render(){
 }
 $('#btn').addEventListener('click', async () => {
   $('#status').textContent = 'Decrypting archive…';
-  try { DATA = await decrypt($('#pass').value); $('#unlock').hidden = true; $('#app').hidden = false; parseHash(); if(!STATE.id && STATE.section==='daily') STATE.id = DATA.daily_logs[0]?.date; buildShell(); render(); }
-  catch(e){ $('#status').textContent = 'Unlock failed. Check the passphrase.'; console.error(e); }
+  $('#btn').disabled = true;
+  try { DATA = await decrypt($('#pass').value.trim()); $('#unlock').hidden = true; $('#app').hidden = false; parseHash(); if(!STATE.id && STATE.section==='daily') STATE.id = DATA.daily_logs[0]?.date; buildShell(); render(); }
+  catch(e){ $('#status').textContent = e && e.message ? e.message : 'Unlock failed. Check the passphrase.'; console.error(e); }
+  finally { $('#btn').disabled = false; }
 });
 $('#pass').addEventListener('keydown', e => { if(e.key==='Enter') $('#btn').click(); });
